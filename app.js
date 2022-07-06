@@ -4,7 +4,9 @@ const bodyParser = require('body-parser');
 const ejs = require('ejs');
 const mongoose = require('mongoose');
 //const encrypt = require('mongoose-encryption');
-const md5 = require('md5');
+//const md5 = require('md5');
+const bcrypt = require('bcrypt');
+const saltRounds = process.env.SALTROUNDS;
 
 
 const app = express();
@@ -39,25 +41,34 @@ app.get('/register', (req, res) => {
 })
 
 app.post('/register', (req, res) => {
-    const newUser = new User({
-        email: req.body.username,
-        password: md5(req.body.password)
-    })
 
-    newUser.save((err) => {
-        if (err) {
-            console.log(err);
-        }
-        else {
-            res.render("secrets")
-        }
-    })
+    bcrypt.genSalt(saltRounds, function (err, salt) {
+        bcrypt.hash(req.body.password, salt, function (err, hash) {
+
+            const newUser = new User({
+                email: req.body.username,
+                //password: md5(req.body.password)
+                password: hash
+            })
+            newUser.save((err) => {
+                if (err) {
+                    console.log(err);
+                }
+                else {
+                    res.render("secrets")
+                }
+            })
+
+        });
+    });
+
+
 })
 
 app.post('/login', (req, res) => {
     const userEmail = req.body.username;
-    const userPwd = md5(req.body.password);
-
+    //const userPwd = md5(req.body.password);
+    const userPwd = req.body.password;
 
     User.findOne({ email: userEmail }, (err, foundUser) => {
         if (err) {
@@ -65,12 +76,22 @@ app.post('/login', (req, res) => {
         }
         else {
             if (foundUser) {
-                if (foundUser.password === userPwd) {
-                    res.render('secrets');
-                }
-                else {
-                    res.redirect('/');
-                }
+
+                bcrypt.compare(userPwd, foundUser.password, function (err, result) {
+                    if (result === true) {
+                        res.render('secrets');
+                    }
+                    else {
+                        res.redirect('/');
+                    }
+                });
+
+                // if (foundUser.password === userPwd) {
+                //     res.render('secrets');
+                // }
+                // else {
+                //     res.redirect('/');
+                // }
             }
         }
     })
